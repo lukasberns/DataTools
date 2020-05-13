@@ -1,0 +1,4 @@
+*.ckpt
+*.csv
+.ipynb_checkpoints
+utils
