@@ -1,6 +1,8 @@
-void create_grid(const char *infile, const char *outfile, bool yIsTankAxis = false) {
+void create_grid(const char *infile, const char *outfile, bool yIsTankAxis = false, bool mPMTsAsLayers = false) {
 	// set yIsTankAxis for nuPRISM tank
 	// if false, z is the tank axis
+	//
+	// set mPMT to true to store each small PMT inside an mPMT as its own layer
 
 	gSystem->Load("$WCSIMLIB/libWCSimRoot.so");
 
@@ -26,6 +28,7 @@ void create_grid(const char *infile, const char *outfile, bool yIsTankAxis = fal
 	Double_t nz[NpmtMax];
 
 	Int_t numPMT;
+	Int_t numPMTsInmPMT = 1;
 
 	TTree *Geometry = (TTree *)fin->Get("Geometry");
 	if (Geometry == NULL) {
@@ -44,14 +47,41 @@ void create_grid(const char *infile, const char *outfile, bool yIsTankAxis = fal
 		wcsimGeoT->GetEntry(0);
 
 		numPMT = geom->GetWCNumPMT();
+		int firstmPMTNo = -1;
+		int nummPMT = 0;
 		for (int i = 0; i < numPMT; i++) {
 			const WCSimRootPMT &pmt = geom->GetPMT(i);
-			x[i] = pmt.GetPosition(0);
-			y[i] = pmt.GetPosition(1);
-			z[i] = pmt.GetPosition(2);
-			nx[i] = pmt.GetOrientation(0);
-			ny[i] = pmt.GetOrientation(1);
-			nz[i] = pmt.GetOrientation(2);
+			int idx = i;
+			if (mPMTsAsLayers) {
+				int numInmPMT = pmt.GetmPMT_PMTNo()-1; // make it 0-indexed
+				if (numInmPMT+1 > numPMTsInmPMT) {
+					numPMTsInmPMT = numInmPMT+1;
+				}
+
+				if (i == 0) {
+					firstmPMTNo = pmt.GetmPMTNo();
+				}
+				idx = pmt.GetmPMTNo()-firstmPMTNo;
+				if (idx+1 > nummPMT) {
+					nummPMT = idx+1;
+				}
+
+				if (numInmPMT > 0) {
+					// we will only store the first
+					// especially important for setting the tubeId
+					continue;
+				}
+			}
+			x[idx] = pmt.GetPosition(0);
+			y[idx] = pmt.GetPosition(1);
+			z[idx] = pmt.GetPosition(2);
+			nx[idx] = pmt.GetOrientation(0);
+			ny[idx] = pmt.GetOrientation(1);
+			nz[idx] = pmt.GetOrientation(2);
+		}
+
+		if (mPMTsAsLayers) {
+			numPMT = nummPMT;
 		}
 	}
 	else {
@@ -185,6 +215,10 @@ void create_grid(const char *infile, const char *outfile, bool yIsTankAxis = fal
 	    mGridDirZ(i,j) = nz[gridPmt[idx]];
 	  }
 	}
+
+	TVectorD vNumPMTLayers(1);
+	vNumPMTLayers(0) = numPMTsInmPMT;
+	vNumPMTLayers.Write("vNumPMTLayers");
 
 	mGridPmt .Write("mGridPmt");
 	mGridX   .Write("mGridX");

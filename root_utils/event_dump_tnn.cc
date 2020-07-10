@@ -2,6 +2,7 @@
 #include "TFile.h"
 #include "TTree.h"
 #include "TMatrixD.h"
+#include "TVectorD.h"
 
 #include "WCSimRootEvent.hh" // WCSimRootTrack, WCSimRootCherenkovHit, WCSimRootCherenkovHitTime, WCSimRootCherenkovDigiHit, WCSimRootTrigger, WCSimRootEvent
 
@@ -194,6 +195,12 @@ int main(int argc, char *argv[]) {
 	TMatrixD mGridDirY = *(TMatrixD *)fgrid->Get("mGridDirY");
 	TMatrixD mGridDirZ = *(TMatrixD *)fgrid->Get("mGridDirZ");
 
+	TVectorD *vNumPMTLayers = (TVectorD *)fgrid->Get("vNumPMTLayers");
+	int NPMTLayers = 1;
+	if (vNumPMTLayers != NULL) {
+		NPMTLayers = (*vNumPMTLayers)(0);
+	}
+
 	H5File fout(foutname, H5F_ACC_TRUNC);
 	createDatasetInt(fout, "mGridPmt",  mGridPmt);
   	createDataset   (fout, "mGridX",    mGridX);
@@ -236,7 +243,7 @@ int main(int argc, char *argv[]) {
 	int Nchs = 2; // Q,T
 	int *event_ids = new int[Nevents];
 	int *labels       = new int[Nevents];
-	float *event_data = new float[Nevents*Nrows*Ncols*Nchs];
+	float *event_data = new float[Nevents*Nrows*Ncols*NPMTLayers*Nchs];
 
 	int NmaxOutTracks = 2;
 	int *pids         = new int[Nevents*NmaxOutTracks];
@@ -253,9 +260,11 @@ int main(int argc, char *argv[]) {
 		// initialize
 		for (int i = 0; i < Nrows; i++) {
 			for (int j = 0; j < Nrows; j++) {
-				for (int c = 0; c < Nchs; c++) {
-					int idx = ev*Nrows*Ncols*Nchs + i*Ncols*Nchs + j*Nchs + c;
-					event_data[idx] = 0.;
+				for (int l = 0; l < NPMTLayers; l++) {
+					for (int c = 0; c < Nchs; c++) {
+						int idx = ev*Nrows*Ncols*NPMTLayers*Nchs + i*Ncols*NPMTLayers*Nchs + j*NPMTLayers*Nchs + c*NPMTLayers + l;
+						event_data[idx] = 0.;
+					}
 				}
 			}
 		}
@@ -302,20 +311,22 @@ int main(int argc, char *argv[]) {
 		for (int ihit = 0; ihit < Nhits; ihit++) {
 			WCSimRootCherenkovDigiHit *hit = (WCSimRootCherenkovDigiHit *)trigger->GetCherenkovDigiHits()->At(ihit);
 			int tubeId = hit->GetTubeId()-1; // GetTubeId starts at 1
+			int gridLayer = tubeId % NPMTLayers;
+			tubeId /= NPMTLayers;
 			assert(tubeId >= 0);
 			assert(tubeId <  Nrows*Ncols);
 			int gridRow = pmtGridRow[tubeId];
 			int gridCol = pmtGridCol[tubeId];
-			int idx = ev*Nrows*Ncols*Nchs + gridRow*Ncols*Nchs + gridCol*Nchs;
-			event_data[idx+0] = hit->GetQ();
-			event_data[idx+1] = hit->GetT();
+			int idx = ev*Nrows*Ncols*NPMTLayers*Nchs + gridRow*Ncols*NPMTLayers*Nchs + gridCol*NPMTLayers*Nchs + gridLayer;
+			event_data[idx+0*NPMTLayers] = hit->GetQ();
+			event_data[idx+1*NPMTLayers] = hit->GetT();
 		}
 
 		event_ids[ev] = ev;
 		labels[ev] = label;
 	}
 
-	createDataset(fout, "event_data", event_data, Nevents, Nrows, Ncols, Nchs);
+	createDataset(fout, "event_data", event_data, Nevents, Nrows, Ncols, Nchs*NPMTLayers);
 	createDataset(fout, "event_ids",  event_ids,  Nevents);
 	createDataset(fout, "labels",     labels,     Nevents);
 	createDataset(fout, "pids",       pids,       Nevents, NmaxOutTracks);
