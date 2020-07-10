@@ -2,6 +2,8 @@ void create_grid(const char *infile, const char *outfile, bool yIsTankAxis = fal
 	// set yIsTankAxis for nuPRISM tank
 	// if false, z is the tank axis
 
+	gSystem->Load("$WCSIMLIB/libWCSimRoot.so");
+
 	TFile *fin = new TFile(infile);
 	if (fin->IsZombie()) {
 		cerr << "cannot open infile: " << infile << endl;
@@ -13,11 +15,6 @@ void create_grid(const char *infile, const char *outfile, bool yIsTankAxis = fal
 		cerr << "Could not open outfile: " << outfile << endl;
 	}
 
-	TTree *Geometry = (TTree *)fin->Get("Geometry");
-
-	Int_t numPMT;
-	Geometry->SetBranchAddress("numPMT_ID", &numPMT);
-
 	const int NpmtMax = 20000;
 	// pmt position [cm]
 	Double_t x[NpmtMax];
@@ -28,14 +25,48 @@ void create_grid(const char *infile, const char *outfile, bool yIsTankAxis = fal
 	Double_t ny[NpmtMax];
 	Double_t nz[NpmtMax];
 
-	Geometry->SetBranchAddress("x", x);
-	Geometry->SetBranchAddress("y", y);
-	Geometry->SetBranchAddress("z", z);
-	Geometry->SetBranchAddress("direction_x", nx);
-	Geometry->SetBranchAddress("direction_y", ny);
-	Geometry->SetBranchAddress("direction_z", nz);
+	Int_t numPMT;
 
-	Geometry->GetEntry(0);
+	TTree *Geometry = (TTree *)fin->Get("Geometry");
+	if (Geometry == NULL) {
+		// not flat file
+		WCSimRootGeom *geom = NULL;
+		TTree *wcsimGeoT = (TTree *)fin->Get("wcsimGeoT");
+		if (wcsimGeoT == NULL) {
+			cerr << "Could not find treee with geometry" << endl;
+			return;
+		}
+		if (wcsimGeoT->GetEntries() < 1) {
+			cerr << "Not enough entries in geom tree" << endl;
+			return;
+		}
+		wcsimGeoT->SetBranchAddress("wcsimrootgeom", &geom);
+		wcsimGeoT->GetEntry(0);
+
+		numPMT = geom->GetWCNumPMT();
+		for (int i = 0; i < numPMT; i++) {
+			const WCSimRootPMT &pmt = geom->GetPMT(i);
+			x[i] = pmt.GetPosition(0);
+			y[i] = pmt.GetPosition(1);
+			z[i] = pmt.GetPosition(2);
+			nx[i] = pmt.GetOrientation(0);
+			ny[i] = pmt.GetOrientation(1);
+			nz[i] = pmt.GetOrientation(2);
+		}
+	}
+	else {
+		Geometry->SetBranchAddress("numPMT_ID", &numPMT);
+
+		Geometry->SetBranchAddress("x", x);
+		Geometry->SetBranchAddress("y", y);
+		Geometry->SetBranchAddress("z", z);
+		Geometry->SetBranchAddress("direction_x", nx);
+		Geometry->SetBranchAddress("direction_y", ny);
+		Geometry->SetBranchAddress("direction_z", nz);
+
+		Geometry->GetEntry(0);
+	}
+
 
 	// additional values
 	double rho[NpmtMax];

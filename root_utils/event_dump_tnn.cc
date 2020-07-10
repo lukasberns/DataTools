@@ -3,6 +3,8 @@
 #include "TTree.h"
 #include "TMatrixD.h"
 
+#include "WCSimRootEvent.hh" // WCSimRootTrack, WCSimRootCherenkovHit, WCSimRootCherenkovHitTime, WCSimRootCherenkovDigiHit, WCSimRootTrigger, WCSimRootEvent
+
 #include <string>
 #include <cassert>
 
@@ -201,36 +203,18 @@ int main(int argc, char *argv[]) {
   	createDataset   (fout, "mGridDirY", mGridDirY);
   	createDataset   (fout, "mGridDirZ", mGridDirZ);
   
-	TTree *Trigger = (TTree *)fin->Get("Trigger");
-	if (!Trigger) {
-		printf("Could not find Trigger tree in wcsim file. Make sure you pass the _flat.root file.\n");
+	TTree *wcsimT = (TTree *)fin->Get("wcsimT");
+	if (!wcsimT) {
+		printf("Could not find wcsimT tree in wcsim file.\n");
 		exit(201);
 	}
-	Int_t Event;
-	Double_t StartTime;
-	Trigger->SetBranchAddress("Event", &Event);
-	Trigger->SetBranchAddress("StartTime", &StartTime);
-	Long_t Nentries = Trigger->GetEntries();
-	Trigger->GetEntry(Nentries-1);
-	int Nevents = Event; // because Event starts at 1, this is number of events
 
-	int *subEventEntry = new int[Nevents];
-	double *subEventStartTime = new double[Nevents];
-	for (Long_t ev = 0; ev < Nevents; ev++) {
-		subEventEntry[ev] = -1;
-		subEventStartTime[ev] = 0.;
-	}
+	WCSimRootEvent *event = NULL;
+	wcsimT->SetBranchAddress("wcsimrootevent", &event);
+	wcsimT->GetBranch("wcsimrootevent")->SetAutoDelete(kTRUE);
 
-	for (Long_t ie = 0; ie < Nentries; ie++) {
-		Trigger->GetEntry(ie);
-		assert(Event > 0);
-		assert(Event <= Nevents);
-		if (subEventEntry[Event-1] == -1 || StartTime < subEventStartTime[Event-1]) {
-			// new event, or earlier subevent
-			subEventEntry[Event-1] = ie;
-			subEventStartTime[Event-1] = StartTime;
-		}
-	}
+	int Nevents = wcsimT->GetEntries();
+
 
 	int Nrows = mGridPmt.GetNrows();
 	int Ncols = mGridPmt.GetNcols();
@@ -260,44 +244,11 @@ int main(int argc, char *argv[]) {
 	float *directions = new float[Nevents*NmaxOutTracks*3];
 	float *energies   = new float[Nevents*NmaxOutTracks];
 
-	TTree *CherenkovDigiHits = (TTree *)fin->Get("CherenkovDigiHits");
-	Int_t NDigiHits;
-	Int_t *Tube = new Int_t[Nrows*Ncols];
-	Float_t *Q = new Float_t[Nrows*Ncols];
-	Float_t *T = new Float_t[Nrows*Ncols];
-	CherenkovDigiHits->SetBranchAddress("NDigiHits", &NDigiHits);
-	CherenkovDigiHits->SetBranchAddress("Tube", Tube);
-	CherenkovDigiHits->SetBranchAddress("Q", Q);
-	CherenkovDigiHits->SetBranchAddress("T", T);
-
-	TTree *Tracks = (TTree *)fin->Get("Tracks");
-	Int_t Ntracks;
-	const int NmaxTracks = 1000;
-	Int_t ParentID[NmaxTracks];
-	Int_t Pid[NmaxTracks];
-	Int_t Flag[NmaxTracks];
-	Float_t Energy[NmaxTracks];
-	Float_t Dirx[NmaxTracks];
-	Float_t Diry[NmaxTracks];
-	Float_t Dirz[NmaxTracks];
-	Float_t Start_x[NmaxTracks];
-	Float_t Start_y[NmaxTracks];
-	Float_t Start_z[NmaxTracks];
-	Tracks->SetBranchAddress("Ntracks", &Ntracks);
-	Tracks->SetBranchAddress("ParentID", ParentID);
-	Tracks->SetBranchAddress("Pid", Pid);
-	Tracks->SetBranchAddress("Flag", Flag);
-	Tracks->SetBranchAddress("Energy", Energy);
-	Tracks->SetBranchAddress("Dirx", Dirx);
-	Tracks->SetBranchAddress("Diry", Diry);
-	Tracks->SetBranchAddress("Dirz", Dirz);
-	Tracks->SetBranchAddress("Start_x", Start_x);
-	Tracks->SetBranchAddress("Start_y", Start_y);
-	Tracks->SetBranchAddress("Start_z", Start_z);
-
 	for (int ev = 0; ev < Nevents; ev++) {
-		CherenkovDigiHits->GetEntry(subEventEntry[ev]);
-		Tracks           ->GetEntry(subEventEntry[ev]);
+		wcsimT->GetEntry(ev);
+
+		assert(event->GetNumberOfEvents() > 0);
+		WCSimRootTrigger *trigger = event->GetTrigger(0);
 
 		// initialize
 		for (int i = 0; i < Nrows; i++) {
@@ -319,35 +270,45 @@ int main(int argc, char *argv[]) {
 			directions[i*3+1] = 0.;
 			directions[i*3+2] = 0.;
 		}
-		
+
 		// get truth info
 		int savedTracks = 0;
-		for (int it = 0; it < Ntracks; it++) {
-			if (ParentID[it] == 0 && Flag[it] == 0) {
+		int Ntracks = trigger->GetNtrack();
+		for (int itrack = 0; itrack < Ntracks; itrack++) {
+			WCSimRootTrack *track = (WCSimRootTrack *)trigger->GetTracks()->At(itrack);
+			if (track->GetParenttype() == 0 && track->GetFlag() == 0) {
+				const int pidGamma = 22;
+				const int pidZero  =  0;
+				if (track->GetIpnu() == pidGamma || track->GetIpnu() == pidZero) {
+					// for a gamma there will be a e+/e- pair with parenttype=0 later in the array, which have the proper vertex information etc.
+					continue;
+				}
 				int i = ev*NmaxOutTracks + savedTracks;
-				pids    [i] = Pid[it];
-				energies[i] = Energy[it];
-				positions[i*3+0] = Start_x[it];
-				positions[i*3+1] = Start_y[it];
-				positions[i*3+2] = Start_z[it];
-				directions[i*3+0] = Dirx[it];
-				directions[i*3+1] = Diry[it];
-				directions[i*3+2] = Dirz[it];
+				pids    [i] = track->GetIpnu();
+				energies[i] = track->GetE();
+				positions[i*3+0] = track->GetStart(0);
+				positions[i*3+1] = track->GetStart(1);
+				positions[i*3+2] = track->GetStart(2);
+				directions[i*3+0] = track->GetDir(0);
+				directions[i*3+1] = track->GetDir(1);
+				directions[i*3+2] = track->GetDir(2);
 				savedTracks++;
-				assert(savedTracks < NmaxOutTracks);
+				assert(savedTracks <= NmaxOutTracks);
 			}
 		}
 		
 		// get Q and T
-		for (int ihit = 0; ihit < NDigiHits; ihit++) {
-			// Tube starts at 1
-			assert(Tube[ihit] >= 1);
-			assert(Tube[ihit] <= Nrows*Ncols);
-			int gridRow = pmtGridRow[Tube[ihit]-1];
-			int gridCol = pmtGridCol[Tube[ihit]-1];
+		int Nhits = trigger->GetNcherenkovdigihits();
+		for (int ihit = 0; ihit < Nhits; ihit++) {
+			WCSimRootCherenkovDigiHit *hit = (WCSimRootCherenkovDigiHit *)trigger->GetCherenkovDigiHits()->At(ihit);
+			int tubeId = hit->GetTubeId()-1; // GetTubeId starts at 1
+			assert(tubeId >= 0);
+			assert(tubeId <  Nrows*Ncols);
+			int gridRow = pmtGridRow[tubeId];
+			int gridCol = pmtGridCol[tubeId];
 			int idx = ev*Nrows*Ncols*Nchs + gridRow*Ncols*Nchs + gridCol*Nchs;
-			event_data[idx+0] = Q[ihit];
-			event_data[idx+1] = T[ihit];
+			event_data[idx+0] = hit->GetQ();
+			event_data[idx+1] = hit->GetT();
 		}
 
 		event_ids[ev] = ev;
@@ -364,12 +325,7 @@ int main(int argc, char *argv[]) {
 
 	printf("Wrote to %s\n", foutname);
 	delete fgrid;
-	delete [] subEventEntry;
-	delete [] subEventStartTime;
 	delete [] pmtGridRow;
 	delete [] pmtGridCol;
 	delete [] event_data;
-	delete [] Tube;
-	delete [] Q;
-	delete [] T;
 }
