@@ -16,16 +16,16 @@ def geometricPad(grid, pad=1):
   grid_new[:,:,pad:(M+pad),(M+pad):(M+pad+pad)] = grid[:,:,(M-pad):,:].flip(-2).transpose(-1,-2);
   return(grid_new);
 
-f = h5py.File('/home/lukasb/watchmal/data_ssd/IWCDmPMT_4pi_full_tank/h5_topo/gamma/IWCDmPMT_4pi_full_tank_gamma_E0to1000MeV_unif-pos-R371-y521cm_4pi-dir_3000evts_300.h5','r')
-event_data = f['event_data'][:]
-mGridCoords = np.stack([
-    f['mGridX'][()]/1000.,
-    f['mGridY'][()]/1000.,
-    f['mGridZ'][()]/1000.,
-    f['mGridDirX'][()]*3.,
-    f['mGridDirY'][()]*3.,
-    f['mGridDirZ'][()]*3.
-],2).astype(np.float32)
+# f = h5py.File('/home/lukasb/watchmal/data_ssd/IWCDmPMT_4pi_full_tank/h5_topo/gamma/IWCDmPMT_4pi_full_tank_gamma_E0to1000MeV_unif-pos-R371-y521cm_4pi-dir_3000evts_300.h5','r')
+# event_data = f['event_data'][:]
+# mGridCoords = np.stack([
+#     f['mGridX'][()]/1000.,
+#     f['mGridY'][()]/1000.,
+#     f['mGridZ'][()]/1000.,
+#     f['mGridDirX'][()]*3.,
+#     f['mGridDirY'][()]*3.,
+#     f['mGridDirZ'][()]*3.
+# ],2).astype(np.float32)
 
 def imshowRdBu(ax,img):
     minmax = max(torch.max(img),-torch.min(img))
@@ -72,6 +72,22 @@ def torch_XY2QT(evX, evY):
     evQ = torch.pow(evR,4);
     evT = 960. + evA*(1900.-600.)/(2.*np.pi)
     return evQ, evT
+
+def loadGridCoords(file_name):
+    print("Reading PMT grid information from %s" % file_name)
+    import h5py
+    f = h5py.File(file_name,mode='r')
+    mGridCoords = np.stack([
+        f['mGridX'][()]/1000.,
+        f['mGridY'][()]/1000.,
+        f['mGridZ'][()]/1000.,
+        f['mGridDirX'][()]*3.,
+        f['mGridDirY'][()]*3.,
+        f['mGridDirZ'][()]*3.
+    ],2).astype(np.float32)
+    print("mGridCoords.shape = ", mGridCoords.shape)
+    f.close()
+    return mGridCoords
 
 class H5Dataset(Dataset):
 
@@ -142,15 +158,22 @@ class H5Dataset(Dataset):
         
         event_data = fh['event_data'][entry_index]
         # convert event data to complex rep
-        evQ = event_data[:,:,0]
-        evT = event_data[:,:,1]
+        if event_data.shape[2] == 2:
+            evQ = event_data[:,:,0:1]
+            evT = event_data[:,:,1:2]
+        elif event_data.shape[2] == 38:
+            evQ = event_data[:,:, 0:19]
+            evT = event_data[:,:,19:38]
+        else:
+            raise Exception("Unexpected shape at index 2 (currently 2 and 38 are supported): (%d,%d,%d,..)" % event_data.shape)
+
         evX,evY = np_QT2XY(evQ, evT)
         totalQ = np.sum(evQ)
         
         p = np.sum(fh['directions'][entry_index,:,:] * np.expand_dims(fh['energies'][entry_index,:], 1), 0);
         totdir = p / np.expand_dims(np.sqrt(np.sum(p*p,0)),0)
         
-        return np.stack([evX,evY],2),label,idx,fh['positions'][entry_index,0],totdir,np.sum(fh['energies'][entry_index,:]),totalQ
+        return np.concatenate([evX,evY],2),label,idx,fh['positions'][entry_index,0],totdir,np.sum(fh['energies'][entry_index,:]),totalQ
         # the ,0 in positions selects the pos for the first track (in case of gamma)
         # for directions we compute the energy-weighted sum (which is the photon momentum for a gamma)
         # thus positions and directions are just np arrays with 3 elements

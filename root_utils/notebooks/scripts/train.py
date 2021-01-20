@@ -3,7 +3,8 @@ import os
 import numpy as np
 import sys
 
-mcdir = '/home/lukasb/watchmal/data_ssd/IWCDmPMT_4pi_full_tank/h5_topo'
+try: mcdir
+except NameError: mcdir = '/home/lukasb/watchmal/data_ssd/IWCDmPMT_4pi_full_tank/h5_topo'
 
 try: pnameset
 except NameError: pnameset = "all"
@@ -22,6 +23,8 @@ files = ['%s/%s/IWCDmPMT_4pi_full_tank_%s_E0to1000MeV_unif-pos-R371-y521cm_4pi-d
 
 train_ds = H5Dataset(files,start_fraction=0.0,use_fraction=0.9);
 test_ds  = H5Dataset(files,start_fraction=0.9,use_fraction=0.1);
+
+blob.mGridCoords = loadGridCoords(files[0])
 
 # for training
 train_loader=DataLoader(train_ds,batch_size=32,shuffle=True,num_workers=4,collate_fn=HKCollate)

@@ -24,6 +24,8 @@ for bch in np.arange(99)+2:
     dataset = H5Dataset(files,start_fraction=0.0,use_fraction=1.0);
     loader  = DataLoader(dataset,batch_size=32,shuffle=False,num_workers=4,collate_fn=HKCollate)
 
+    blob.mGridCoords = loadGridCoords(files[0])
+
     simple_position, simple_logSigmaPosSqr, pred_Eabovethres, pred_logSigmaESqr, pred_position, pred_logSigmaPosSqr, pred_direction, pred_logSigmaDirSqr, label, positions, directions, energies = inferenceWithSoftmax(blob,loader)
 
     outfile = '%s/%s/IWCDmPMT_4pi_full_tank_%s_E0to1000MeV_unif-pos-R371-y521cm_4pi-dir_3000evts_%d.h5' % (outdir,pname,pname,bch)

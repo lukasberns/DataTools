@@ -6,7 +6,7 @@ def forward(blob,train=True):
     """
     with torch.set_grad_enabled(train):
         # Prediction
-        data = torch.as_tensor(np.concatenate([blob.data, np.broadcast_to(mGridCoords, (blob.data.shape[0],)+mGridCoords.shape)],3)).cuda()#[torch.as_tensor(d).cuda() for d in blob.data]
+        data = torch.as_tensor(np.concatenate([blob.data, np.broadcast_to(blob.mGridCoords, (blob.data.shape[0],)+blob.mGridCoords.shape)],3)).cuda()#[torch.as_tensor(d).cuda() for d in blob.data]
         data = data.permute(0,3,1,2)
         out = blob.net(data)
         out_Eabovethres,out_Eres = getEnergyPrediction(out)

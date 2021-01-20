@@ -1,7 +1,9 @@
 import os
 import numpy as np
 
-mcdir = '/home/lukasb/watchmal/data/IWCDmPMT_4pi_full_tank/h5_topo'
+try: mcdir
+except NameError: mcdir = '/home/lukasb/watchmal/data/IWCDmPMT_4pi_full_tank/h5_topo'
+
 pname = 'e-'
 #pname = 'mu-'
 #pname = 'gamma'
@@ -23,6 +25,8 @@ for bch in np.arange(99)+2:
     
     dataset = H5Dataset(files,start_fraction=0.0,use_fraction=1.0);
     loader  = DataLoader(dataset,batch_size=32,shuffle=False,num_workers=4,collate_fn=HKCollate)
+
+    blob.mGridCoords = loadGridCoords(files[0])
 
     pred_Eabovethres, pred_logSigmaESqr, pred_position, pred_logSigmaPosSqr, pred_direction, pred_logSigmaDirSqr, label, positions, directions, energies = inferenceWithSoftmax(blob,loader)
 
