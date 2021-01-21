@@ -6,6 +6,9 @@ import sys
 try: mcdir
 except NameError: mcdir = '/home/lukasb/watchmal/data_ssd/IWCDmPMT_4pi_full_tank/h5_topo'
 
+try: batches
+except NameError: batches = np.arange(300)+100
+
 try: pnameset
 except NameError: pnameset = "all"
 
@@ -19,7 +22,7 @@ else:
     print("Unknown pnameset = '%s'" % pnameset)
     sys.exit(15)
 
-files = ['%s/%s/IWCDmPMT_4pi_full_tank_%s_E0to1000MeV_unif-pos-R371-y521cm_4pi-dir_3000evts_%d.h5' % (mcdir,pname,pname,bch+100) for bch in range(300) for pname in pnames]
+files = ['%s/%s/IWCDmPMT_4pi_full_tank_%s_E0to1000MeV_unif-pos-R371-y521cm_4pi-dir_3000evts_%d.h5' % (mcdir,pname,pname,bch) for bch in batches for pname in pnames]
 
 train_ds = H5Dataset(files,start_fraction=0.0,use_fraction=0.9);
 test_ds  = H5Dataset(files,start_fraction=0.9,use_fraction=0.1);
