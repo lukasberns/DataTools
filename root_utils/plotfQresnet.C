@@ -18,6 +18,7 @@ TH1D *hrelE[nc];
 TH1D *hpos[nc];
 TH1D *hposL[nc];
 TH1D *hposT[nc];
+TH1D *hposT2[nc];
 TH1D *hdir[nc];
 
 TH2D *hrelEtowall[nc];
@@ -138,6 +139,9 @@ for (int ic = 0; ic < nc; ic++) {
 
   hposT[ic] = new TH1D(Form("hposT_%d", ic), ";Transverse distance to true vertex [cm];Events", 200, 0., 200.);
   hposT[ic]->SetLineColor(colors[ic]);
+
+  hposT2[ic] = new TH1D(Form("hposT2_%d", ic), ";Transverse distance square to true vertex [cm^{2}];Events", 200, 0., 400.);
+  hposT2[ic]->SetLineColor(colors[ic]);
   
   hdir[ic] = new TH1D(Form("hdir_%d", ic), ";Angle to true direction [deg];Events", 200, 0., 45.);
   hdir[ic]->SetLineColor(colors[ic]);
@@ -241,6 +245,9 @@ for (Long_t fQev = 0; fQev < fQ_Nentries; fQev++) {
 
   hposT[ic_fQ]->Fill((fqpos - trpos - ((fqpos - trpos) * trdir)*trdir).Mag());
   hposT[ic_h5]->Fill((h5pos - trpos - ((h5pos - trpos) * trdir)*trdir).Mag());
+
+  hposT2[ic_fQ]->Fill((fqpos - trpos - ((fqpos - trpos) * trdir)*trdir).Mag2());
+  hposT2[ic_h5]->Fill((h5pos - trpos - ((h5pos - trpos) * trdir)*trdir).Mag2());
 
   
   TVector3 fqdir(fq1rdir[0][fiTQun_pid]);
