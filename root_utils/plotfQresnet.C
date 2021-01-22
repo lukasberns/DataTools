@@ -240,7 +240,7 @@ for (Long_t fQev = 0; fQev < fQ_Nentries; fQev++) {
   hposL[ic_h5]->Fill((h5pos - trpos) * trdir);
 
   hposT[ic_fQ]->Fill((fqpos - trpos - ((fqpos - trpos) * trdir)*trdir).Mag());
-  hposT[ic_h5]->Fill((fqpos - trpos - ((h5pos - trpos) * trdir)*trdir).Mag());
+  hposT[ic_h5]->Fill((h5pos - trpos - ((h5pos - trpos) * trdir)*trdir).Mag());
 
   
   TVector3 fqdir(fq1rdir[0][fiTQun_pid]);
