@@ -23,7 +23,10 @@ for bch in np.arange(99)+2:
 
     files = [infile]
     
-    dataset = H5Dataset(files,start_fraction=0.0,use_fraction=1.0);
+    try: QT_transform
+    except NameError: QT_transform = np_QT2XY
+
+    dataset = H5Dataset(files,QT_transform=QT_transform,start_fraction=0.0,use_fraction=1.0);
     loader  = DataLoader(dataset,batch_size=32,shuffle=False,num_workers=4,collate_fn=HKCollate)
 
     blob.mGridCoords = loadGridCoords(files[0])

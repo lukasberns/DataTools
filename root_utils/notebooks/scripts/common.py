@@ -73,6 +73,13 @@ def torch_XY2QT(evX, evY):
     evT = 960. + evA*(1900.-600.)/(2.*np.pi)
     return evQ, evT
 
+"""
+Normalize time (each a 2D numpy array)
+"""
+def np_QT_timenorm(evQ, evT):
+    evS = np.where(evQ > 0., 10.*(evT-960.)/(1900.-600.), 0.)
+    return evQ, evS
+
 def loadGridCoords(file_name):
     print("Reading PMT grid information from %s" % file_name)
     import h5py
@@ -91,7 +98,7 @@ def loadGridCoords(file_name):
 
 class H5Dataset(Dataset):
 
-    def __init__(self, files, transform=None, flavour=None, limit_num_files=0, start_fraction=0., use_fraction=1.0):
+    def __init__(self, files, transform=None, flavour=None, limit_num_files=0, start_fraction=0., use_fraction=1.0, QT_transform=np_QT2XY):
         """                                                                                                                                             
         Args: data_dirs ... a list of data directories to find files (up to 10 files read from each dir)                                                
               transform ... a function applied to pre-process data                                                                                      
@@ -99,8 +106,10 @@ class H5Dataset(Dataset):
               limit_num_files ... an integer limiting number of files to be taken per data directory                                                    
               start_fraction ... a floating point fraction (0.0=>1.0) to specify which entry to start reading (per file)                                
               use_fraction ..... a floating point fraction (0.0=>1.0) to specify how much fraction of a file to be read out (per file)                  
+              QT_transform   ... a function taking Q,T np arrays as arguments and transforming to the X,Y variables to use during training. If set to None, no transformation will be done.
         """
         self._transform = transform
+        self._QT_transform = QT_transform
         self._files = []
 
         # Check input fractions makes sense                                                                                                             
@@ -167,7 +176,10 @@ class H5Dataset(Dataset):
         else:
             raise Exception("Unexpected shape at index 2 (currently 2 and 38 are supported): (%d,%d,%d,..)" % event_data.shape)
 
-        evX,evY = np_QT2XY(evQ, evT)
+        if self._QT_transform is not None:
+            evX,evY = self._QT_transform(evQ, evT)
+        else:
+            evX,evY = evQ,evT
         totalQ = np.sum(evQ)
         
         p = np.sum(fh['directions'][entry_index,:,:] * np.expand_dims(fh['energies'][entry_index,:], 1), 0);

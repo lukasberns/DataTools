@@ -24,8 +24,11 @@ else:
 
 files = ['%s/%s/IWCDmPMT_4pi_full_tank_%s_E0to1000MeV_unif-pos-R371-y521cm_4pi-dir_3000evts_%d.h5' % (mcdir,pname,pname,bch) for bch in batches for pname in pnames]
 
-train_ds = H5Dataset(files,start_fraction=0.0,use_fraction=0.9);
-test_ds  = H5Dataset(files,start_fraction=0.9,use_fraction=0.1);
+try: QT_transform
+except NameError: QT_transform = np_QT2XY
+
+train_ds = H5Dataset(files,QT_transform=QT_transform,start_fraction=0.0,use_fraction=0.9);
+test_ds  = H5Dataset(files,QT_transform=QT_transform,start_fraction=0.9,use_fraction=0.1);
 
 blob.mGridCoords = loadGridCoords(files[0])
 
