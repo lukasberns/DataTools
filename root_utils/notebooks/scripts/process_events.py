@@ -44,7 +44,10 @@ for bch in np.arange(99)+2:
     writeDataset(of, pred_Eabovethres[:,0], 'pred_Eabovethres', 'f')       # (N,)
     writeDataset(of, pred_logSigmaESqr[:,0], 'pred_logSigmaESqr', 'f')     # (N,)
     writeDataset(of, pred_position, 'pred_position', 'f')                  # (N,3)
-    writeDataset(of, pred_logSigmaPosSqr[:,0], 'pred_logSigmaPosSqr', 'f') # (N,)
+    if pred_logSigmaPosSqr.shape[1] == 1:
+        writeDataset(of, pred_logSigmaPosSqr[:,0], 'pred_logSigmaPosSqr', 'f') # (N,)
+    else:
+        writeDataset(of, pred_logSigmaPosSqr, 'pred_logSigmaPosSqr', 'f') # (N,*), for longtrans etc.
     writeDataset(of, pred_direction, 'pred_direction', 'f')                # (N,3)
     writeDataset(of, pred_logSigmaDirSqr[:,0], 'pred_logSigmaDirSqr', 'f') # (N,)
 
