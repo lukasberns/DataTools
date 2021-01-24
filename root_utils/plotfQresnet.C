@@ -25,6 +25,10 @@ TH2D *hrelEtowall[nc];
 TH2D *hpostowall[nc];
 TH2D *hdirtowall[nc];
 
+TH2D *hrelEE[nc];
+TH2D *hposE[nc];
+TH2D *hdirE[nc];
+
 TH1D *hdwall;
 TH1D *htowall;
 
@@ -150,6 +154,10 @@ for (int ic = 0; ic < nc; ic++) {
   hrelEtowall[ic] = new TH2D(Form("hrelEtowall_%d", ic), ";Distance to wall along track [cm];|pred - true|/true energy", 50, 0., 520., 200, 0., 0.5);
   hpostowall[ic] = new TH2D(Form("hpostowall_%d", ic), ";Distance to wall along track [cm];Distance to true vertex [cm]", 50, 0., 520., 200, 0., 200.);
   hdirtowall[ic] = new TH2D(Form("hdirtowall_%d", ic), ";Distance to wall along track [cm];Angle to true direction [deg]", 50, 0., 520., 200, 0., 45.);
+
+  hrelEE[ic] = new TH2D(Form("hrelEE_%d", ic), ";True energy above threshold [MeV];|pred - true|/true energy",     50, 0., 1000., 200, 0., 0.5);
+  hposE[ic] = new TH2D(Form("hposE_%d", ic),   ";True energy above threshold [MeV];Distance to true vertex [cm]",  50, 0., 1000., 200, 0., 200.);
+  hdirE[ic] = new TH2D(Form("hdirE_%d", ic),   ";True energy above threshold [MeV];Angle to true direction [deg]", 50, 0., 1000., 200, 0., 45.);
 }
 
 
@@ -267,6 +275,16 @@ for (Long_t fQev = 0; fQev < fQ_Nentries; fQev++) {
 
   hdirtowall[ic_fQ]->Fill(towall, trdir.Angle(fqdir)/TMath::Pi()*180.);
   hdirtowall[ic_h5]->Fill(towall, trdir.Angle(h5dir)/TMath::Pi()*180.);
+
+
+  hrelEE[ic_fQ]->Fill(true_Eabovethres, fabs(fq1rEabovethres - true_Eabovethres)/true_Eabovethres);
+  hrelEE[ic_h5]->Fill(true_Eabovethres, fabs(pred_Eabovethres - true_Eabovethres)/true_Eabovethres);
+
+  hposE[ic_fQ]->Fill(true_Eabovethres, (fqpos - trpos).Mag());
+  hposE[ic_h5]->Fill(true_Eabovethres, (h5pos - trpos).Mag());
+
+  hdirE[ic_fQ]->Fill(true_Eabovethres, trdir.Angle(fqdir)/TMath::Pi()*180.);
+  hdirE[ic_h5]->Fill(true_Eabovethres, trdir.Angle(h5dir)/TMath::Pi()*180.);
 }
 
 TLegend *l1 = new TLegend(0.6, 0.65, 0.97, 0.85);
