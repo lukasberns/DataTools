@@ -67,6 +67,12 @@ blob.train_log, blob.test_log = CSVData('%s-log_train%s.csv' % (blob.prefix,log_
 # Set the network to training mode
 blob.net.train()
 
+def getMessage(blob, res):
+    if 'loss_pid' in res:
+        return '... Iteration %d ... Epoch %1.2f ... Loss %1.3f = %1.3f (pid) + %1.3f (energy) + %1.3f (pos) + %1.3f (dir)' % (blob.iteration,blob.epoch,res['loss'],res['loss_pid'],res['loss_energy'],res['loss_position'],res['loss_direction'])
+    else:
+        return '... Iteration %d ... Epoch %1.2f ... Loss %1.3f = %1.3f (energy) + %1.3f (pos) + %1.3f (dir)' % (blob.iteration,blob.epoch,res['loss'],res['loss_energy'],res['loss_position'],res['loss_direction'])
+
 # Start training
 while int(blob.epoch+0.5) < TRAIN_EPOCH:
     print('Epoch',int(blob.epoch+0.5),'Starting @',time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
@@ -98,7 +104,7 @@ while int(blob.epoch+0.5) < TRAIN_EPOCH:
         blob.train_log.write()
         # once in a while, report
         if i==0 or (i+1)%10 == 0:
-            message = '... Iteration %d ... Epoch %1.2f ... Loss %1.3f = %1.3f (energy) + %1.3f (pos) + %1.3f (dir)' % (blob.iteration,blob.epoch,res['loss'],res['loss_energy'],res['loss_position'],res['loss_direction'])
+            message = getMessage(blob,res)
             #progress.update(progress_bar((i+1),len(train_loader),message))
             progress_text(i+1,len(train_loader),message)
         # more rarely, run validation
@@ -123,7 +129,7 @@ while int(blob.epoch+0.5) < TRAIN_EPOCH:
             blob.net.train()
         if blob.epoch >= TRAIN_EPOCH:
             break
-    message = '... Iteration %d ... Epoch %1.2f ... Loss %1.3f = %1.3f (energy) + %1.3f (pos) + %1.3f (dir)' % (blob.iteration,blob.epoch,res['loss'],res['loss_energy'],res['loss_position'],res['loss_direction'])
+    message = getMessage(blob,res)
     #print(message)
     #progress.update(progress_bar((i+1),len(train_loader),message))
     progress_text(i+1,len(train_loader),message)
