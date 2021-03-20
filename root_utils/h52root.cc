@@ -11,7 +11,7 @@
 using namespace H5;
 using namespace std;
 
-const int maxentry = 5;
+const int maxentry = 10;
 
 class Reader {
 public:
