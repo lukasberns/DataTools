@@ -1,3 +1,5 @@
+#define WITH_MPMT 0
+
 void create_grid(const char *infile, const char *outfile, bool yIsTankAxis = false, bool mPMTsAsLayers = false) {
 	// set yIsTankAxis for nuPRISM tank
 	// if false, z is the tank axis
@@ -52,6 +54,7 @@ void create_grid(const char *infile, const char *outfile, bool yIsTankAxis = fal
 		for (int i = 0; i < numPMT; i++) {
 			const WCSimRootPMT &pmt = geom->GetPMT(i);
 			int idx = i;
+#if WITH_MPMT
 			if (mPMTsAsLayers) {
 				int numInmPMT = pmt.GetmPMT_PMTNo()-1; // make it 0-indexed
 				if (numInmPMT+1 > numPMTsInmPMT) {
@@ -72,6 +75,7 @@ void create_grid(const char *infile, const char *outfile, bool yIsTankAxis = fal
 					continue;
 				}
 			}
+#endif
 			x[idx] = pmt.GetPosition(0);
 			y[idx] = pmt.GetPosition(1);
 			z[idx] = pmt.GetPosition(2);
@@ -80,9 +84,11 @@ void create_grid(const char *infile, const char *outfile, bool yIsTankAxis = fal
 			nz[idx] = pmt.GetOrientation(2);
 		}
 
+#if WITH_MPMT
 		if (mPMTsAsLayers) {
 			numPMT = nummPMT;
 		}
+#endif
 	}
 	else {
 		Geometry->SetBranchAddress("numPMT_ID", &numPMT);
