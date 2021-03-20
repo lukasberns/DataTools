@@ -86,6 +86,7 @@ blob.data      = None # data for training/analysis
 blob.label     = None # label for training/analysis
 
 
+use_relE = False # global that's needed for inferenceWithSoftmax
 
 if sys.argv[1] == "reco":
     blob.prefix += '-20210124-231712'

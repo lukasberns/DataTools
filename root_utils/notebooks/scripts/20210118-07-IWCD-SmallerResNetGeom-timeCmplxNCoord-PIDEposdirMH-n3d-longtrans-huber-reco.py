@@ -78,7 +78,7 @@ blob.iteration = 0
 blob.data      = None # data for training/analysis
 blob.label     = None # label for training/analysis
 
-
+use_relE = False # global to control process_events_pidreleposdir.py
 
 if sys.argv[1] == "reco":
     blob.prefix += '-20210124-231712'

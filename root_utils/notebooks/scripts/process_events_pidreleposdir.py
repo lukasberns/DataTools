@@ -7,6 +7,9 @@ except NameError: mcdir = '/home/lukasb/watchmal/data/IWCDmPMT_4pi_full_tank/h5_
 try: pname
 except NameError: pname = 'e-'
 
+try: use_relE
+except NameError: use_relE = True
+
 #pname = 'e-'
 #pname = 'mu-'
 #pname = 'gamma'
@@ -34,7 +37,7 @@ for bch in np.arange(99)+2:
 
     blob.mGridCoords = loadGridCoords(files[0])
 
-    pred_pid_index, pred_pid_softmax, pred_Eabovethres, pred_logSigmaESqr, pred_position, pred_logSigmaPosSqr, pred_direction, pred_logSigmaDirSqr, label, positions, directions, energies = inferenceWithSoftmax(blob,loader)
+    pred_pid_index, pred_pid_softmax, pred_Eabovethres, pred_logSigmaESqr, pred_position, pred_logSigmaPosSqr, pred_direction, pred_logSigmaDirSqr, label, positions, directions, energies = inferenceWithSoftmax(blob,loader,use_relE=use_relE)
 
     outfile = '%s/%s/IWCDmPMT_4pi_full_tank_%s_E0to1000MeV_unif-pos-R371-y521cm_4pi-dir_3000evts_%d.h5' % (outdir,pname,pname,bch)
     of = h5py.File(outfile, "w")

@@ -1,5 +1,5 @@
 
-def inferenceWithSoftmax(blob,data_loader):
+def inferenceWithSoftmax(blob,data_loader,use_relE=True):
     label,pred_pid_index,pred_pid_softmax,pred_Eabovethres,pred_logSigmaESqr,pred_position,pred_logSigmaPosSqr,pred_direction,pred_logSigmaDirSqr,positions,directions,energies=[],[],[],[],[],[],[],[],[],[],[],[]
     # set the network to test (non-train) mode
     blob.net.eval()
@@ -17,7 +17,10 @@ def inferenceWithSoftmax(blob,data_loader):
         Evis = np.expand_dims(0.085*blob.totQ, -1)
         pred_pid_index  .append(res['pred_pid_index'])
         pred_pid_softmax.append(res['pred_pid_softmax'])
-        pred_Eabovethres.append(res['pred_Eabovethres']*(np.sqrt(500.)*np.sqrt(Evis+0.5)) + Evis)
+        if use_relE:
+            pred_Eabovethres.append(res['pred_Eabovethres']*(np.sqrt(500.)*np.sqrt(Evis+0.5)) + Evis)
+        else:
+            pred_Eabovethres.append(res['pred_Eabovethres'])
         pred_logSigmaESqr.append(res['pred_Eres'])
         pred_position.append(res['pred_position'])
         pred_logSigmaPosSqr.append(res['pred_positionres'])
