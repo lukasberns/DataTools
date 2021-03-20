@@ -8,7 +8,7 @@ from resnet_geom import BasicGeomBlock
 # this is a multi-head version of ResetGeom
 
 class ResNetMHGeom(nn.Module):
-    def __init__(self, block, num_blocks, head_num_classes=[3], overall_in_planes=8, overall_ch=64, initial_stride=[2,2], use_layer0=False):
+    def __init__(self, block, num_blocks, head_num_classes=[3], overall_in_planes=8, overall_ch=64, initial_stride=[2,2], use_layer0=False, dropout=0., use_MLP_BN=False):
         """
         head_num_classes: an array with an integer for each head
                           where the integer gives the number of classes
@@ -17,6 +17,11 @@ class ResNetMHGeom(nn.Module):
                           so e.g. [1,3,3] with ResNetMHGeom gives the 
                           same output as ResNetGeom with 7 output values,
                           but each head has its own fully-connected layer.
+
+        dropout:          set value larger than 0 to add dropout layers in
+                          the fully-connected layer
+
+        use_MLP_BN:       insert batch-norm into fully-connected layer, too
         """
         # overall_in_planes: 8 for Q+T+3PMTpos+3PMTdir
         # for mPMT_as_layers: 44 for 19Q+19T+3PMTpos+3PMTdir
@@ -72,15 +77,27 @@ class ResNetMHGeom(nn.Module):
         # transform to 128, then
         heads = []
         for num_classes in head_num_classes:
-            heads.append(nn.Sequential(
-                nn.Linear(int(2*overall_ch*block.expansion),   int(2*overall_ch*block.expansion/2)),
-                nn.ReLU(),
-                nn.Linear(int(2*overall_ch*block.expansion/2), int(2*overall_ch*block.expansion/4)),
-                nn.ReLU(),
-                nn.Linear(int(2*overall_ch*block.expansion/4), int(2*overall_ch*block.expansion/8)),
-                nn.ReLU(),
-                nn.Linear(int(2*overall_ch*block.expansion/8), num_classes)
-            ))
+            seq = []
+            seq.append(nn.Linear(int(2*overall_ch*block.expansion),   int(2*overall_ch*block.expansion/2)))
+            if use_MLP_BN:
+                seq.append(nn.BatchNorm1d(int(2*overall_ch*block.expansion/2)))
+            seq.append(nn.ReLU())
+            if dropout > 0.:
+                seq.append(nn.Dropout(p=dropout))
+            seq.append(nn.Linear(int(2*overall_ch*block.expansion/2), int(2*overall_ch*block.expansion/4)))
+            if use_MLP_BN:
+                seq.append(nn.BatchNorm1d(int(2*overall_ch*block.expansion/4)))
+            seq.append(nn.ReLU())
+            if dropout > 0.:
+                seq.append(nn.Dropout(p=dropout))
+            seq.append(nn.Linear(int(2*overall_ch*block.expansion/4), int(2*overall_ch*block.expansion/8)))
+            if use_MLP_BN:
+                seq.append(nn.BatchNorm1d(int(2*overall_ch*block.expansion/8)))
+            seq.append(nn.ReLU())
+            if dropout > 0.:
+                seq.append(nn.Dropout(p=dropout))
+            seq.append(nn.Linear(int(2*overall_ch*block.expansion/8), num_classes))
+            heads.append(nn.Sequential(*seq))
         self.heads = nn.ModuleList(heads)
 
     def _make_layer(self, block, planes, num_blocks, stride):
@@ -123,7 +140,7 @@ class ResNetMHGeom(nn.Module):
 #            module.cuda()
 #        return self
 
-def ResNetMHGeom18(head_num_classes):
+def ResNetMHGeom18(head_num_classes, **kwargs):
     """
     head_num_classes: an array with an integer for each head
                       where the integer gives the number of classes
@@ -133,4 +150,4 @@ def ResNetMHGeom18(head_num_classes):
                       same output as ResNetGeom with 7 output values,
                       but each head has its own fully-connected layer.
     """
-    return ResNetMHGeom(BasicGeomBlock, [2, 2, 2, 2], head_num_classes)
+    return ResNetMHGeom(BasicGeomBlock, [2, 2, 2, 2], head_num_classes, **kwargs)
