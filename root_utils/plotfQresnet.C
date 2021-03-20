@@ -3,11 +3,14 @@
 #include "TLegend.h"
 #include "TH1D.h"
 #include "TH2D.h"
+#include "TGraph.h"
 #include "TMath.h"
 #include "TVector3.h"
 
 #include <cmath>
 #include <cassert>
+#include <vector>
+#include <string>
 using namespace std;
 
 const int nc = 2;
@@ -29,14 +32,58 @@ TH2D *hrelEE[nc];
 TH2D *hposE[nc];
 TH2D *hdirE[nc];
 
+TGraph *pid_ROC[nc];
+
 TH1D *hdwall;
 TH1D *htowall;
 
+TCanvas *c1 = NULL;
+TChain *fQ = NULL;
+TChain *h5 = NULL;
+
 const char *confst[nc];
 
-void plotfQresnet(const char *recoversion, const char *recovershort) {
+int fQ_nevt;
+const int fiTQun_maxsubevt = 3;
+const int fiTQun_npid = 7;
+const int fiTQun_electron = 1;
+const int fiTQun_muon     = 2;
 
-const char *pname = "e-";
+float fq1rnll[fiTQun_maxsubevt][fiTQun_npid];
+float fq1rmom[fiTQun_maxsubevt][fiTQun_npid];
+float fq1rpos[fiTQun_maxsubevt][fiTQun_npid][3];
+float fq1rdir[fiTQun_maxsubevt][fiTQun_npid][3];
+int fq1rpcflg[fiTQun_maxsubevt][fiTQun_npid];
+
+int true_label;
+const int label_electron = 0;
+const int label_muon = 1;
+const int label_gamma = 2;
+const int nlabel = 3;
+
+const char *labelLatex[nlabel] = { "e", "#mu", "#gamma" };
+const double mass[nlabel] = { 0.511, 105.7, 0.511*2. };
+const double pthres[nlabel] = { 0.57, 118., 0.57 *2 };
+double Ethres[nlabel];
+
+float true_Eabovethres;
+float pred_Eabovethres;
+
+float true_position[3];
+float pred_position[3];
+
+float true_direction[3];
+float pred_direction[3];
+
+bool has_pred_pid = false;
+float pred_pid_softmax[nlabel];
+
+int od_veto;
+int is_michel;
+
+void plotfQresnet(const char *recoversion, const char *recovershort, const char *pname="e-", bool use_pass=true, const char *devnotedir = NULL) {
+
+// const char *pname = "e-";
 // const char *pname = "mu-";
 
 const char *datadir = "/home/lukasb/watchmal/data/IWCDmPMT_4pi_full_tank";
@@ -51,14 +98,34 @@ const char *datadir = "/home/lukasb/watchmal/data/IWCDmPMT_4pi_full_tank";
 // const char *recoversion = "20200827-01-IWCD-SmallResNetGeom-timeCmplxNCoord-relEposdir-01-relEposdir";
 // const char *recovershort = "ResNet 20200827-01-01";
 
-TChain *fQ = new TChain("fiTQun");
-TChain *h5 = new TChain("h5");
+int label_sig = label_electron;
+int label_bkg = label_muon;
+
+vector<string> pnames;
+if (string("e-mu-") == pname) {
+  pnames.push_back("e-");
+  pnames.push_back("mu-");
+}
+else if (string("e-gamma") == pname) {
+  pnames.push_back("e-");
+  pnames.push_back("gamma");
+  label_bkg = label_gamma;
+}
+else {
+  pnames.push_back(pname);
+}
+
+fQ = new TChain("fiTQun");
+h5 = new TChain("h5");
 const int bchOffset = 2;
 const int NentriesPerFile = 3000;
 for (int bch = bchOffset; bch < 100; bch++) {
 // for (int bch = bchOffset; bch < 61; bch++) {
-  fQ->Add(Form("%s/fiTQun/%s/E0to1000MeV/unif-pos-R371-y521cm/4pi-dir/IWCDmPMT_4pi_full_tank_%s_E0to1000MeV_unif-pos-R371-y521cm_4pi-dir_3000evts_%d_fiTQun.root", datadir, pname, pname, bch));
-  h5->Add(Form("%s/reco_%s/%s/IWCDmPMT_4pi_full_tank_%s_E0to1000MeV_unif-pos-R371-y521cm_4pi-dir_3000evts_%d.root", datadir, recoversion, pname, pname, bch));
+  for (unsigned ip = 0; ip < pnames.size(); ip++) {
+    const char *thispname = pnames.at(ip).c_str();
+    fQ->Add(Form("%s/fiTQun/%s/E0to1000MeV/unif-pos-R371-y521cm/4pi-dir/IWCDmPMT_4pi_full_tank_%s_E0to1000MeV_unif-pos-R371-y521cm_4pi-dir_3000evts_%d_fiTQun.root", datadir, thispname, thispname, bch));
+    h5->Add(Form("%s/reco_%s/%s/IWCDmPMT_4pi_full_tank_%s_E0to1000MeV_unif-pos-R371-y521cm_4pi-dir_3000evts_%d.root", datadir, recoversion, thispname, thispname, bch));
+  }
 }
 
 TChain *todveto = new TChain("h5");
@@ -68,44 +135,14 @@ TChain *tmichels = new TChain("h5");
 tmichels->Add(Form("%s/michels.root", datadir));
 
 
-int fQ_nevt;
-const int fiTQun_maxsubevt = 2;
-const int fiTQun_npid = 7;
-const int fiTQun_electron = 1;
-const int fiTQun_muon     = 2;
-
-float fq1rmom[fiTQun_maxsubevt][fiTQun_npid];
-float fq1rpos[fiTQun_maxsubevt][fiTQun_npid][3];
-float fq1rdir[fiTQun_maxsubevt][fiTQun_npid][3];
-int fq1rpcflg[fiTQun_maxsubevt][fiTQun_npid];
 
 fQ->SetBranchAddress("nevt", &fQ_nevt);
+fQ->SetBranchAddress("fq1rnll", fq1rnll);
 fQ->SetBranchAddress("fq1rmom", fq1rmom);
 fQ->SetBranchAddress("fq1rpos", fq1rpos);
 fQ->SetBranchAddress("fq1rdir", fq1rdir);
 fQ->SetBranchAddress("fq1rpcflg", fq1rpcflg);
 
-int true_label;
-const int label_electron = 0;
-const int label_muon = 1;
-const int label_gamma = 2;
-const int nlabel = 3;
-
-const double mass[nlabel] = { 0.511, 105.7, 0.511*2. };
-const double pthres[nlabel] = { 0.57, 118., 0.57 *2 };
-double Ethres[nlabel];
-for (int il = 0; il < nlabel; il++) {
-  Ethres[il] = sqrt(pow(mass[il],2) + pow(pthres[il],2));
-}
-
-float true_Eabovethres;
-float pred_Eabovethres;
-
-float true_position[3];
-float pred_position[3];
-
-float true_direction[3];
-float pred_direction[3];
 
 h5->SetBranchAddress("true_label", &true_label);
 h5->SetBranchAddress("true_Eabovethres", &true_Eabovethres);
@@ -116,8 +153,15 @@ h5->SetBranchAddress("pred_position" , pred_position);
 h5->SetBranchAddress("true_directions", true_direction);
 h5->SetBranchAddress("pred_direction" , pred_direction);
 
-int od_veto;
-int is_michel;
+if (h5->GetBranch("pred_pid_softmax") != NULL) {
+  has_pred_pid = true;
+  h5->SetBranchAddress("pred_pid_softmax", pred_pid_softmax);
+}
+
+for (int il = 0; il < nlabel; il++) {
+  Ethres[il] = sqrt(pow(mass[il],2) + pow(pthres[il],2));
+}
+
 todveto->SetBranchAddress("veto", &od_veto);
 tmichels->SetBranchAddress("is_michel", &is_michel);
 
@@ -167,6 +211,13 @@ Long64_t *h5TreeOffset = h5->GetTreeOffset();
 
 h5->GetEntry(0);
 assert(h5->GetTree()->GetEntries() == NentriesPerFile);
+
+Long_t pid_Nentries = 0;
+double *pid_llr[nc];
+int *pid_true = new int[fQ_Nentries];
+for (int ic = 0; ic < nc; ic++) {
+  pid_llr[ic] = new double[fQ_Nentries];
+}
 
 for (Long_t fQev = 0; fQev < fQ_Nentries; fQev++) {
   fQ->GetEntry(fQev);
@@ -227,8 +278,7 @@ for (Long_t fQev = 0; fQev < fQ_Nentries; fQev++) {
   passCut &= (fq1rpcflg[0][fiTQun_electron] == 0);
   passCut &= (fq1rpcflg[0][fiTQun_muon] == 0);
 
-  if (!passCut) { continue; }
-  //if (passCut) { continue; }
+  if (passCut != use_pass) { continue; }
   
   double fq1rEabovethres = sqrt(pow(fq1rmom[0][fiTQun_pid],2) + pow(mass[true_label],2)) - Ethres[true_label];
   hrelE[ic_fQ]->Fill((fq1rEabovethres - true_Eabovethres)/true_Eabovethres);
@@ -285,7 +335,93 @@ for (Long_t fQev = 0; fQev < fQ_Nentries; fQev++) {
 
   hdirE[ic_fQ]->Fill(true_Eabovethres, trdir.Angle(fqdir)/TMath::Pi()*180.);
   hdirE[ic_h5]->Fill(true_Eabovethres, trdir.Angle(h5dir)/TMath::Pi()*180.);
+
+  if (has_pred_pid) {
+    pid_llr[ic_fQ][pid_Nentries] = fq1rnll[0][fiTQun_electron] - fq1rnll[0][fiTQun_muon]; // log L(mu)/L(e)
+    pid_llr[ic_h5][pid_Nentries] = log(pred_pid_softmax[label_bkg] / pred_pid_softmax[label_sig]); // log L(bkg=mu)/L(sig=e)
+    pid_true[pid_Nentries] = true_label;
+    pid_Nentries++;
+  }
 }
+
+if (has_pred_pid) {
+  Long_t pid_Nentries_sig = 0;
+  Long_t pid_Nentries_bkg = 0;
+  for (Long_t ev = 0; ev < pid_Nentries; ev++) {
+    if (pid_true[ev] == label_sig) {
+      pid_Nentries_sig++;
+    }
+    else if (pid_true[ev] == label_bkg) {
+      pid_Nentries_bkg++;
+    }
+  }
+  printf("pid_Nentries_sig = %lld, pid_Nentries_bkg = %lld\n", pid_Nentries_sig, pid_Nentries_bkg);
+
+  Long_t *pid_llr_order[nc];
+  double *pid_roc_sigeff[nc];
+  double *pid_roc_bkgeff[nc];
+  double *pid_roc_bkgrej[nc];
+  for (int ic = 0; ic < nc; ic++) {
+    pid_llr_order[ic] = new Long_t[pid_Nentries];
+    TMath::Sort(pid_Nentries, pid_llr[ic], pid_llr_order[ic], false);
+    delete [] pid_llr[ic];
+
+    pid_roc_sigeff[ic] = new double[pid_Nentries];
+    pid_roc_bkgeff[ic] = new double[pid_Nentries];
+    pid_roc_bkgrej[ic] = new double[pid_Nentries];
+
+    Long_t isb = 0; // sig or bkg
+    for (Long_t io = 0; io < pid_Nentries; io++) {
+      Long_t ev = pid_llr_order[ic][io];
+      if (isb == 0) {
+        pid_roc_sigeff[ic][isb] = 0.;
+        pid_roc_bkgeff[ic][isb] = 0.;
+        pid_roc_bkgrej[ic][isb] = 0.;
+      }
+      else {
+        pid_roc_sigeff[ic][isb] = pid_roc_sigeff[ic][isb-1];
+        pid_roc_bkgeff[ic][isb] = pid_roc_bkgeff[ic][isb-1];
+        pid_roc_bkgrej[ic][isb] = pid_roc_bkgrej[ic][isb-1];
+      }
+
+      if (pid_true[ev] == label_sig) {
+        pid_roc_sigeff[ic][isb] += 1./double(pid_Nentries_sig);
+        isb++;
+      }
+      else if (pid_true[ev] == label_bkg) {
+        pid_roc_bkgeff[ic][isb] += 1./double(pid_Nentries_bkg);
+        pid_roc_bkgrej[ic][isb]  = 1./pid_roc_bkgeff[ic][isb];
+        isb++;
+      }
+    }
+    Long_t sigbkg_Nentries = isb;
+    printf("sigbkg_Nentries = %lld\n", sigbkg_Nentries);
+
+    for (isb = 0; isb < sigbkg_Nentries; isb++) {
+      if (pid_roc_bkgeff[ic][isb] > 0.) {
+        break;
+      }
+    }
+    Long_t zerobkg_Nentries = isb;
+    printf("zerobkg_Nentries = %lld\n", zerobkg_Nentries);
+
+    if (pid_Nentries_sig > 0 && pid_Nentries_bkg > 0) {
+      pid_ROC[ic] = new TGraph(sigbkg_Nentries-zerobkg_Nentries, pid_roc_sigeff[ic]+zerobkg_Nentries, pid_roc_bkgrej[ic]+zerobkg_Nentries);
+    }
+    else {
+      printf("Cannot make pid ROC curves since either sig or bkg have no entries\n");
+    }
+
+    delete [] pid_roc_sigeff[ic];
+    delete [] pid_roc_bkgeff[ic];
+    delete [] pid_roc_bkgrej[ic];
+    delete [] pid_llr_order[ic];
+  }
+
+  delete [] pid_true;
+}
+
+c1 = new TCanvas;
 
 TLegend *l1 = new TLegend(0.6, 0.65, 0.97, 0.85);
 l1->SetBorderSize(0);
@@ -303,4 +439,307 @@ hrelE[ic_fQ]->Draw();
 hrelE[ic_h5]->Draw("same");
 
 l1->Draw();
+
+if (devnotedir != NULL) {
+c1->SaveAs(Form("%s/fqresnet_%s_%s_pass%d_relE.pdf", devnotedir, recoversion, pname, use_pass));
+
+l1 = new TLegend(0.5, 0.65, 0.9, 0.85);
+l1->SetBorderSize(0);
+
+///////////// POSITION /////////////
+ymax = 1.;
+for (int ic = 0; ic < nc; ic++) {
+  l1->AddEntry(hpos[ic], confst[ic], "L");
+  if (hpos[ic]->GetMaximum() > ymax) {
+    ymax = hpos[ic]->GetMaximum();
+  }
+}
+hpos[ic_fQ]->SetMaximum(1.1*ymax);
+hpos[ic_fQ]->SetMinimum(0.);
+hpos[ic_fQ]->Draw();
+hpos[ic_h5]->Draw("same");
+l1->Draw();
+c1->SaveAs(Form("%s/fqresnet_%s_%s_pass%d_pos.pdf", devnotedir, recoversion, pname, use_pass));
+
+l1 = new TLegend(0.6, 0.65, 0.95, 0.85);
+l1->SetBorderSize(0);
+
+ymax = 1.;
+for (int ic = 0; ic < nc; ic++) {
+  l1->AddEntry(hposL[ic], confst[ic], "L");
+  if (hposL[ic]->GetMaximum() > ymax) {
+    ymax = hposL[ic]->GetMaximum();
+  }
+}
+hposL[ic_fQ]->SetMaximum(1.1*ymax);
+hposL[ic_fQ]->SetMinimum(0.);
+hposL[ic_fQ]->Draw();
+hposL[ic_h5]->Draw("same");
+l1->Draw();
+c1->SaveAs(Form("%s/fqresnet_%s_%s_pass%d_posL.pdf", devnotedir, recoversion, pname, use_pass));
+
+l1 = new TLegend(0.5, 0.65, 0.95, 0.85);
+l1->SetBorderSize(0);
+
+ymax = 1.;
+for (int ic = 0; ic < nc; ic++) {
+  l1->AddEntry(hposT[ic], confst[ic], "L");
+  if (hposT[ic]->GetMaximum() > ymax) {
+    ymax = hposT[ic]->GetMaximum();
+  }
+}
+hposT[ic_fQ]->SetMaximum(1.1*ymax);
+hposT[ic_fQ]->SetMinimum(0.);
+hposT[ic_fQ]->Draw();
+hposT[ic_h5]->Draw("same");
+l1->Draw();
+c1->SaveAs(Form("%s/fqresnet_%s_%s_pass%d_posT.pdf", devnotedir, recoversion, pname, use_pass));
+
+l1 = new TLegend(0.5, 0.65, 0.95, 0.85);
+l1->SetBorderSize(0);
+
+ymax = 1.;
+for (int ic = 0; ic < nc; ic++) {
+  l1->AddEntry(hposT2[ic], confst[ic], "L");
+  if (hposT[ic]->GetMaximum() > ymax) {
+    ymax = hposT2[ic]->GetMaximum();
+  }
+}
+hposT2[ic_fQ]->SetMaximum(1.1*ymax);
+hposT2[ic_fQ]->SetMinimum(0.);
+hposT2[ic_fQ]->Draw();
+hposT2[ic_h5]->Draw("same");
+l1->Draw();
+c1->SaveAs(Form("%s/fqresnet_%s_%s_pass%d_posT2.pdf", devnotedir, recoversion, pname, use_pass));
+
+l1 = new TLegend(0.4, 0.65, 0.95, 0.85);
+l1->SetBorderSize(0);
+
+//////////// DIRECTION //////////////
+ymax = 1.;
+for (int ic = 0; ic < nc; ic++) {
+  l1->AddEntry(hdir[ic], confst[ic], "L");
+  if (hdir[ic]->GetMaximum() > ymax) {
+    ymax = hdir[ic]->GetMaximum();
+  }
+}
+hdir[ic_fQ]->SetMaximum(1.1*ymax);
+hdir[ic_fQ]->SetMinimum(0.);
+hdir[ic_fQ]->Draw();
+hdir[ic_h5]->Draw("same");
+l1->Draw();
+c1->SaveAs(Form("%s/fqresnet_%s_%s_pass%d_dir.pdf", devnotedir, recoversion, pname, use_pass));
+
+//////////// PID ROC curve /////////////
+if (pid_ROC[0] != NULL) {
+  c1->SetLogy();
+  pid_ROC[ic_fQ]->SetLineColor(kAzure-2);
+  pid_ROC[ic_fQ]->SetLineWidth(2);
+  pid_ROC[ic_fQ]->SetMinimum(1.);
+  pid_ROC[ic_fQ]->GetXaxis()->SetRangeUser(0.2, 1.05);
+  pid_ROC[ic_fQ]->SetTitle("");
+  pid_ROC[ic_fQ]->GetXaxis()->SetTitle(Form("%s signal efficiency", labelLatex[label_sig]));
+  pid_ROC[ic_fQ]->GetYaxis()->SetTitle(Form("%s background rejection", labelLatex[label_bkg]));
+  pid_ROC[ic_fQ]->Draw("AL");
+  
+  pid_ROC[ic_h5]->SetLineColor(kRed-4);
+  pid_ROC[ic_h5]->SetLineWidth(2);
+  pid_ROC[ic_h5]->Draw("L");
+  
+  l1 = new TLegend(0.17, 0.25, 0.65, 0.45);
+  l1->SetBorderSize(0);
+  for (int ic = 0; ic < nc; ic++) {
+    l1->AddEntry(pid_ROC[ic], confst[ic], "L");
+  }
+  l1->Draw();
+  c1->SaveAs(Form("%s/fqresnet_%s_%s_pass%d_PID.pdf", devnotedir, recoversion, pname, use_pass));
+  c1->SetLogy(0);
+}
+
+/////////// relE as function of towall ///////////
+TH1D *hrelEtowall_1sig[nc];
+for (int ic = 0; ic < nc; ic++) {
+  hrelEtowall_1sig[ic] = (TH1D *)hrelEtowall[ic]->ProjectionX(Form("hrelEtowall_1sig_%d", ic));
+  hrelEtowall_1sig[ic]->GetYaxis()->SetTitle("Relative energy resolution");
+  for (int ix = 0; ix < hrelEtowall[ic]->GetNbinsX(); ix++) {
+    double cumsum = 0.;
+    int iy;
+    for (iy = 0; iy < hrelEtowall[ic]->GetNbinsY(); iy++) {
+      cumsum += hrelEtowall[ic]->GetBinContent(ix+1,iy+1);
+      if (cumsum > 0.683*hrelEtowall_1sig[ic]->GetBinContent(ix+1)) {
+        break;
+      }
+    }
+    hrelEtowall_1sig[ic]->SetBinContent(ix+1, hrelEtowall[ic]->GetYaxis()->GetBinUpEdge(iy+1));
+  }
+}
+
+c1->cd();
+l1 = new TLegend(0.5, 0.65, 0.9, 0.85);
+l1->SetBorderSize(0);
+ymax = 0.1;
+for (int ic = 0; ic < nc; ic++) {
+  hrelEtowall_1sig[ic]->SetLineColor(hrelE[ic]->GetLineColor());
+  l1->AddEntry(hrelEtowall_1sig[ic], confst[ic], "L");
+  if (hrelEtowall_1sig[ic]->GetMaximum() > ymax) {
+    ymax = hrelEtowall_1sig[ic]->GetMaximum();
+  }
+}
+ymax = 0.5;
+hrelEtowall_1sig[ic_fQ]->SetMaximum(0.3);
+hrelEtowall_1sig[ic_fQ]->SetMinimum(0.);
+hrelEtowall_1sig[ic_fQ]->Draw();
+hrelEtowall_1sig[ic_h5]->Draw("same");
+l1->Draw();
+c1->SaveAs(Form("%s/fqresnet_%s_%s_pass%d_relE_towall.pdf", devnotedir, recoversion, pname, use_pass));
+
+/////////// pos as function of towall ////////////
+TH1D *hpostowall_1sig[nc];
+for (int ic = 0; ic < nc; ic++) {
+  hpostowall_1sig[ic] = (TH1D *)hpostowall[ic]->ProjectionX(Form("hpostowall_1sig_%d", ic));
+  hpostowall_1sig[ic]->GetYaxis()->SetTitle(hpostowall[ic]->GetYaxis()->GetTitle());
+  for (int ix = 0; ix < hpostowall[ic]->GetNbinsX(); ix++) {
+    double cumsum = 0.;
+    int iy;
+    for (iy = 0; iy < hpostowall[ic]->GetNbinsY(); iy++) {
+      cumsum += hpostowall[ic]->GetBinContent(ix+1,iy+1);
+      if (cumsum > 0.683*hpostowall_1sig[ic]->GetBinContent(ix+1)) {
+        break;
+      }
+    }
+    hpostowall_1sig[ic]->SetBinContent(ix+1, hpostowall[ic]->GetYaxis()->GetBinUpEdge(iy+1));
+  }
+}
+
+c1->cd();
+l1 = new TLegend(0.45, 0.65, 0.95, 0.85);
+l1->SetBorderSize(0);
+ymax = 0.1;
+for (int ic = 0; ic < nc; ic++) {
+  hpostowall_1sig[ic]->SetLineColor(hpos[ic]->GetLineColor());
+  l1->AddEntry(hpostowall_1sig[ic], confst[ic], "L");
+  if (hpostowall_1sig[ic]->GetMaximum() > ymax) {
+    ymax = hpostowall_1sig[ic]->GetMaximum();
+  }
+}
+ymax = 30.;
+hpostowall_1sig[ic_fQ]->SetMaximum(1.1*ymax);
+hpostowall_1sig[ic_fQ]->SetMinimum(0.);
+hpostowall_1sig[ic_fQ]->Draw();
+hpostowall_1sig[ic_h5]->Draw("same");
+l1->Draw();
+c1->SaveAs(Form("%s/fqresnet_%s_%s_pass%d_pos_towall.pdf", devnotedir, recoversion, pname, use_pass));
+
+////////////// dir as function of towall /////////////
+TH1D *hdirtowall_1sig[nc];
+for (int ic = 0; ic < nc; ic++) {
+  hdirtowall_1sig[ic] = (TH1D *)hdirtowall[ic]->ProjectionX(Form("hdirtowall_1sig_%d", ic));
+  hdirtowall_1sig[ic]->GetYaxis()->SetTitle(hdirtowall[ic]->GetYaxis()->GetTitle());
+  for (int ix = 0; ix < hdirtowall[ic]->GetNbinsX(); ix++) {
+    double cumsum = 0.;
+    int iy;
+    for (iy = 0; iy < hdirtowall[ic]->GetNbinsY(); iy++) {
+      cumsum += hdirtowall[ic]->GetBinContent(ix+1,iy+1);
+      if (cumsum > 0.683*hdirtowall_1sig[ic]->GetBinContent(ix+1)) {
+        break;
+      }
+    }
+    hdirtowall_1sig[ic]->SetBinContent(ix+1, hdirtowall[ic]->GetYaxis()->GetBinUpEdge(iy+1));
+  }
+}
+
+c1->cd();
+l1 = new TLegend(0.45, 0.65, 0.95, 0.85);
+l1->SetBorderSize(0);
+ymax = 0.1;
+for (int ic = 0; ic < nc; ic++) {
+  hdirtowall_1sig[ic]->SetLineColor(hdir[ic]->GetLineColor());
+  l1->AddEntry(hdirtowall_1sig[ic], confst[ic], "L");
+  if (hdirtowall_1sig[ic]->GetMaximum() > ymax) {
+    ymax = hdirtowall_1sig[ic]->GetMaximum();
+  }
+}
+ymax = 20.;
+hdirtowall_1sig[ic_fQ]->SetMaximum(1.1*ymax);
+hdirtowall_1sig[ic_fQ]->SetMinimum(0.);
+hdirtowall_1sig[ic_fQ]->Draw();
+hdirtowall_1sig[ic_h5]->Draw("same");
+l1->Draw();
+c1->SaveAs(Form("%s/fqresnet_%s_%s_pass%d_dir_towall.pdf", devnotedir, recoversion, pname, use_pass));
+
+
+////////////// relE as function of energy //////////////
+TH1D *hrelEE_1sig[nc];
+for (int ic = 0; ic < nc; ic++) {
+  hrelEE_1sig[ic] = (TH1D *)hrelEE[ic]->ProjectionX(Form("hrelEE_1sig_%d", ic));
+  hrelEE_1sig[ic]->GetYaxis()->SetTitle("Relative energy resolution");
+  for (int ix = 0; ix < hrelEE[ic]->GetNbinsX(); ix++) {
+    double cumsum = 0.;
+    int iy;
+    for (iy = 0; iy < hrelEE[ic]->GetNbinsY(); iy++) {
+      cumsum += hrelEE[ic]->GetBinContent(ix+1,iy+1);
+      if (cumsum > 0.683*hrelEE_1sig[ic]->GetBinContent(ix+1)) {
+        break;
+      }
+    }
+    hrelEE_1sig[ic]->SetBinContent(ix+1, hrelEE[ic]->GetYaxis()->GetBinUpEdge(iy+1));
+  }
+}
+
+c1->cd();
+l1 = new TLegend(0.45, 0.65, 0.95, 0.85);
+l1->SetBorderSize(0);
+ymax = 0.1;
+for (int ic = 0; ic < nc; ic++) {
+  hrelEE_1sig[ic]->SetLineColor(hrelE[ic]->GetLineColor());
+  l1->AddEntry(hrelEE_1sig[ic], confst[ic], "L");
+  if (hrelEE_1sig[ic]->GetMaximum() > ymax) {
+    ymax = hrelEE_1sig[ic]->GetMaximum();
+  }
+}
+ymax=0.2/1.1;
+hrelEE_1sig[ic_fQ]->SetMaximum(1.1*ymax);
+hrelEE_1sig[ic_fQ]->SetMinimum(0.);
+hrelEE_1sig[ic_fQ]->Draw();
+hrelEE_1sig[ic_h5]->Draw("same");
+l1->Draw();
+c1->SaveAs(Form("%s/fqresnet_%s_%s_pass%d_relE_E.pdf", devnotedir, recoversion, pname, use_pass));
+
+//////////////// pos as function of energy ///////////
+TH1D *hposE_1sig[nc];
+for (int ic = 0; ic < nc; ic++) {
+  hposE_1sig[ic] = (TH1D *)hposE[ic]->ProjectionX(Form("hposE_1sig_%d", ic));
+  hposE_1sig[ic]->GetYaxis()->SetTitle(hposE[ic]->GetYaxis()->GetTitle());
+  for (int ix = 0; ix < hposE[ic]->GetNbinsX(); ix++) {
+    double cumsum = 0.;
+    int iy;
+    for (iy = 0; iy < hposE[ic]->GetNbinsY(); iy++) {
+      cumsum += hposE[ic]->GetBinContent(ix+1,iy+1);
+      if (cumsum > 0.683*hposE_1sig[ic]->GetBinContent(ix+1)) {
+        break;
+      }
+    }
+    hposE_1sig[ic]->SetBinContent(ix+1, hposE[ic]->GetYaxis()->GetBinUpEdge(iy+1));
+  }
+}
+
+c1->cd();
+l1 = new TLegend(0.45, 0.65, 0.95, 0.85);
+l1->SetBorderSize(0);
+ymax = 0.1;
+for (int ic = 0; ic < nc; ic++) {
+  hposE_1sig[ic]->SetLineColor(hpos[ic]->GetLineColor());
+  l1->AddEntry(hposE_1sig[ic], confst[ic], "L");
+  if (hposE_1sig[ic]->GetMaximum() > ymax) {
+    ymax = hposE_1sig[ic]->GetMaximum();
+  }
+}
+ymax = 30.;
+hposE_1sig[ic_fQ]->SetMaximum(1.1*ymax);
+hposE_1sig[ic_fQ]->SetMinimum(0.);
+hposE_1sig[ic_fQ]->Draw();
+hposE_1sig[ic_h5]->Draw("same");
+l1->Draw();
+c1->SaveAs(Form("%s/fqresnet_%s_%s_pass%d_pos_E.pdf", devnotedir, recoversion, pname, use_pass));
+}
 }
