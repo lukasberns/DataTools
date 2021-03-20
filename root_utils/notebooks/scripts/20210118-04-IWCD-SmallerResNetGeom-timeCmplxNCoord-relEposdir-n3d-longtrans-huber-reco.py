@@ -73,7 +73,8 @@ blob.label     = None # label for training/analysis
 
 if sys.argv[1] == "reco":
     blob.prefix += '-20210122-200539'
-    restore_state(blob, 569566)
+    # restore_state(blob, 569566) # epoch 7.5
+    restore_state(blob, 909318) # epoch 12
     execfile(os.path.dirname(__file__)+'/process_events.py')
 elif sys.argv[1] == "reco-electron":
     blob.prefix += '-electron-20200921-043141'

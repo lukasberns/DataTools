@@ -89,15 +89,13 @@ blob.label     = None # label for training/analysis
 use_relE = False # global that's needed for inferenceWithSoftmax
 
 if sys.argv[1] == "reco":
-    blob.prefix += '-20210124-231712'
-    #restore_state(blob,  909318) # epoch 12
-    restore_state(blob, 2166326) # epoch 28.5
+    blob.prefix += '-20210201-183343'
+    restore_state(blob,  745442) # epoch 10?
     blob.prefix += '-%d' % (blob.iteration)
     execfile(os.path.dirname(__file__)+'/process_events_pidreleposdir.py')
 elif sys.argv[1] == "reco-muon":
-    blob.prefix += '-20210124-231712'
-    #restore_state(blob, 909318) # epoch 12
-    restore_state(blob, 2166326) # epoch 28.5
+    blob.prefix += '-20210201-183343'
+    restore_state(blob,  745442) # epoch 10?
     blob.prefix += '-%d' % (blob.iteration)
     pname = 'mu-'
     execfile(os.path.dirname(__file__)+'/process_events_pidreleposdir.py')

@@ -94,6 +94,13 @@ elif sys.argv[1] == "reco-muon":
     blob.prefix += '-%d' % (blob.iteration)
     pname = 'mu-'
     execfile(os.path.dirname(__file__)+'/process_events_pidreleposdir.py')
+elif sys.argv[1] == "reco-gamma":
+    blob.prefix += '-20210124-231712'
+    #restore_state(blob, 909318) # epoch 12
+    restore_state(blob, 2166326) # epoch 28.5
+    blob.prefix += '-%d' % (blob.iteration)
+    pname = 'gamma'
+    execfile(os.path.dirname(__file__)+'/process_events_pidreleposdir.py')
 elif sys.argv[1] == "reco-electron":
     blob.prefix += '-electron-20200921-043141'
     restore_state(blob, 99939)
