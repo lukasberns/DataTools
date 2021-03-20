@@ -49,15 +49,22 @@ for bch in np.arange(99)+2:
     # pred info
     writeDataset(of, pred_pid_index, 'pred_pid_index', 'i')                # (N,)
     writeDataset(of, pred_pid_softmax, 'pred_pid_softmax', 'f')            # (N,)
-    writeDataset(of, pred_Eabovethres[:,0], 'pred_Eabovethres', 'f')       # (N,)
-    writeDataset(of, pred_logSigmaESqr[:,0], 'pred_logSigmaESqr', 'f')     # (N,)
+    if pred_Eabovethres.shape[1] == 1:
+        writeDataset(of, pred_Eabovethres[:,0], 'pred_Eabovethres', 'f')       # (N,)
+        writeDataset(of, pred_logSigmaESqr[:,0], 'pred_logSigmaESqr', 'f')     # (N,)
+    else:
+        writeDataset(of, pred_Eabovethres, 'pred_Eabovethres', 'f')       # (N,*)
+        writeDataset(of, pred_logSigmaESqr, 'pred_logSigmaESqr', 'f')     # (N,*)
     writeDataset(of, pred_position, 'pred_position', 'f')                  # (N,3)
     if pred_logSigmaPosSqr.shape[1] == 1:
         writeDataset(of, pred_logSigmaPosSqr[:,0], 'pred_logSigmaPosSqr', 'f') # (N,)
     else:
         writeDataset(of, pred_logSigmaPosSqr, 'pred_logSigmaPosSqr', 'f') # (N,*), for longtrans etc.
     writeDataset(of, pred_direction, 'pred_direction', 'f')                # (N,3)
-    writeDataset(of, pred_logSigmaDirSqr[:,0], 'pred_logSigmaDirSqr', 'f') # (N,)
+    if pred_logSigmaDirSqr.shape[1] == 1:
+        writeDataset(of, pred_logSigmaDirSqr[:,0], 'pred_logSigmaDirSqr', 'f') # (N,)
+    else:
+        writeDataset(of, pred_logSigmaDirSqr, 'pred_logSigmaDirSqr', 'f') # (N,*)
 
     # true info
     writeDataset(of, np.arange(label.shape[0])+1, 'nevt', 'i') # (N,) this is the event number, to be matched with nevt in fiTQun
