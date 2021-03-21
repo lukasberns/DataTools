@@ -14,7 +14,17 @@ except NameError: use_relE = True
 #pname = 'mu-'
 #pname = 'gamma'
 
-outdir = '/home/lukasb/watchmal/data/IWCDmPMT_4pi_full_tank/reco_%s' % blob.prefix
+try: filespattern
+except NameError: filespattern = '%(mcdir)s/%(pname)s/IWCDmPMT_4pi_full_tank_%(pname)s_E0to1000MeV_unif-pos-R371-y521cm_4pi-dir_3000evts_%(bch)d.h5'
+
+try: outdirpattern
+except NameError: outdirpattern = '/home/lukasb/watchmal/data/IWCDmPMT_4pi_full_tank/reco_%s'
+
+try: outfilepattern
+except NameError: outfilepattern = '%(outdir)s/%(pname)s/IWCDmPMT_4pi_full_tank_%(pname)s_E0to1000MeV_unif-pos-R371-y521cm_4pi-dir_3000evts_%(bch)d.h5'
+
+outdir = outdirpattern % blob.prefix
+
 if not os.path.isdir(outdir):
     os.mkdir(outdir)
 if not os.path.isdir('%s/%s' % (outdir,pname)):
@@ -22,7 +32,7 @@ if not os.path.isdir('%s/%s' % (outdir,pname)):
 
 for bch in np.arange(99)+2:
     print("bch = %d" % bch)
-    infile = '%s/%s/IWCDmPMT_4pi_full_tank_%s_E0to1000MeV_unif-pos-R371-y521cm_4pi-dir_3000evts_%d.h5' % (mcdir,pname,pname,bch)
+    infile = filespattern % {"mcdir":mcdir,"pname":pname,"bch":bch}
     if not os.path.exists(infile):
         print("Skipping %s (not found)" % infile)
         continue
@@ -39,7 +49,7 @@ for bch in np.arange(99)+2:
 
     pred_pid_index, pred_pid_softmax, pred_Eabovethres, pred_logSigmaESqr, pred_position, pred_logSigmaPosSqr, pred_direction, pred_logSigmaDirSqr, label, positions, directions, energies = inferenceWithSoftmax(blob,loader,use_relE=use_relE)
 
-    outfile = '%s/%s/IWCDmPMT_4pi_full_tank_%s_E0to1000MeV_unif-pos-R371-y521cm_4pi-dir_3000evts_%d.h5' % (outdir,pname,pname,bch)
+    outfile = outfilepattern % {"outdir":outdir,"pname":pname,"bch":bch}
     of = h5py.File(outfile, "w")
 
     def writeDataset(of, x, name, dtype):

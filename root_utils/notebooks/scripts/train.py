@@ -22,7 +22,10 @@ else:
     print("Unknown pnameset = '%s'" % pnameset)
     sys.exit(15)
 
-files = ['%s/%s/IWCDmPMT_4pi_full_tank_%s_E0to1000MeV_unif-pos-R371-y521cm_4pi-dir_3000evts_%d.h5' % (mcdir,pname,pname,bch) for bch in batches for pname in pnames]
+try: filespattern
+except NameError: filespattern = '%(mcdir)s/%(pname)s/IWCDmPMT_4pi_full_tank_%(pname)s_E0to1000MeV_unif-pos-R371-y521cm_4pi-dir_3000evts_%(bch)d.h5'
+
+files = [filespattern % {"mcdir":mcdir,"pname":pname,"bch":bch} for bch in batches for pname in pnames]
 
 try: QT_transform
 except NameError: QT_transform = np_QT2XY
