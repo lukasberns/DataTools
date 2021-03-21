@@ -14,6 +14,8 @@ except NameError: pnameset = "all"
 
 if pnameset == "all":
     pnames = ('e-','mu-','gamma')
+elif pnameset == "e-mu-":
+    pnames = ('e-','mu-',)
 elif pnameset == "electron":
     pnames = ('e-',)
 elif pnameset == "muon":
